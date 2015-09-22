@@ -165,6 +165,8 @@ def GetPortPolicies(ssh, port):
 	re_srcaddr = re.compile('\s+set srcaddr \"(.+)\".*')
 	re_service = re.compile('\s+set service \"(.+)\".*')
 	re_action = re.compile('\s+set action (.+)\r.*')
+	re_nat = re.compile('\s+set nat enable')
+	re_natpool = re.compile('\s+set poolname "(.+)"')
 
 	policy = {}
 	for line in raw_out_list:
@@ -190,6 +192,8 @@ def GetPortPolicies(ssh, port):
 			edit_match = re_edit.match(line)
 			if edit_match:
 				policy['number'] = int(edit_match.groups()[0])
+				# Se NAT to false until we prove opposite
+				policy['nat'] = False
 			
 			srcintf_match = re_srcintf.match(line)
 			if srcintf_match:
@@ -214,6 +218,14 @@ def GetPortPolicies(ssh, port):
 			action_match = re_action.match(line)
 			if action_match:
 				policy['action'] = action_match.groups()[0]
+
+			nat_match = re_nat.match(line)
+			if nat_match:
+				policy['nat'] = True
+
+			natpool_match = re_natpool.match(line)
+			if natpool_match:
+				policy['natpool'] = natpool_match.groups()[0]
 
 	return policies
 
@@ -295,6 +307,42 @@ def dec2cidr(dec_netmask):
 			print 'Weird mask ' + dec_netmask
 	
 	return cidr
+
+
+def GetIpPools(ssh):
+	'''
+	Gets full list of al registered IP pools with there names, start and end ip.
+	Args:
+		ssh - established pxssh connection
+	Returns:
+		ip_pools = {pool_name: [start_ip, end_ip]}
+	'''
+	ssh.sendline('show firewall ippool')
+	ssh.prompt()
+	raw_out = ssh.before
+
+	raw_out_list = raw_out.split('\n')
+
+	re_edit = re.compile('\s+edit "(.+)"')
+	re_startip = re.compile('\s+set startip (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+	re_endip = re.compile('\s+set endip (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
+
+	ip_pools = {}
+
+	for line in raw_out_list:
+		edit_match = re_edit.match(line)
+		startip_match = re_startip.match(line)
+		endip_match = re_endip.match(line)
+
+		if edit_match:
+			curr_pool = edit_match.groups()[0]
+			ip_pools[curr_pool] = {}
+		if startip_match:
+			ip_pools[curr_pool]['start'] = startip_match.groups()[0]
+		if endip_match:
+			ip_pools[curr_pool]['end'] = endip_match.groups()[0]
+
+	return ip_pools	
 
 
 def GetAddrGroups(ssh):
@@ -689,7 +737,7 @@ def GetVIPsFromPolicies(ssh, policies):
 
 def main(ARGV):
 
-	# Flags
+	# Flags might be used with commanl line arguments in future
 	# With numeric addresses
 	with_addr = 1
 	# With ports
@@ -739,6 +787,8 @@ def main(ARGV):
 
 		if with_srv:
 			srvs = GetSRVsFromPolicies(ssh, policies)
+
+		ip_pools = GetIpPools(ssh)
 	
 		caption = 'Data collected for ' + port
 		print '\n' + '\033[1;36m' + GetUnderline(caption, '~')
@@ -778,7 +828,8 @@ def main(ARGV):
 									  '\033[1mdstintf\033[0m', 
 									  '\033[1mdstaddr\033[0m', 
 									  '\033[1mservice\033[0m', 
-									  '\033[1maction\033[0m'])
+									  '\033[1maction\033[0m',
+									  '\033[1mNAT\033[0m'])
 		pt.align['\033[1msrcaddr\033[0m'] = 'l'
 		pt.align['\033[1mdstaddr\033[0m'] = 'l'
 		pt.align['\033[1mservice\033[0m'] = 'l'
@@ -839,6 +890,16 @@ def main(ARGV):
 			service = service[:-1]
 	
 			action = policy['action']
+
+			nat_info = ''
+
+			if policy['nat']:
+				if 'natpool' in policy:
+					nat_pool = policy['natpool']
+					nat_info = 'NAT: ' + nat_pool + '\n\033[032m' + ip_pools[nat_pool]['start'] + '-' + ip_pools[nat_pool]['end'] + '\033[0m'
+				else:
+					nat_info = 'NAT to port addr'
+
 	
 			pt.add_row([number, 
 						direction, 
@@ -847,12 +908,12 @@ def main(ARGV):
 						dstintf, 
 						dstaddr, 
 						service, 
-						action])
+						action,
+						nat_info])
 	
 		print pt
 
 		print '\n<END OF ' + port + ' DATA>\n'
-
 
 	ssh.logout()
 
