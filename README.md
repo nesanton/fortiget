@@ -6,7 +6,7 @@ fotriget.py
 ```
 Usage: fortiget.py <firewall_ip> <space separated portlist>
 ```
-Prints everything you'd like to know about  a firewall's port.  Settings,  Routs,  Policies.
+Prints everything you'd like to know about  a firewall's port.  Settings,  Routes,  Policies.
 
 Dependencies:
 * python2.6
