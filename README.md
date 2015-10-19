@@ -1,7 +1,10 @@
 # fortiget
 CLI query tools for Fortinet Fortigate firewalls
 
-fotriget.py
+Currently in rewrite. Existing code is ugly and hardly usefull to anybody.
+
+
+OBSOLETE_fortiget.py
 -----------
 ```
 Usage: fortiget.py <firewall_ip> <space separated portlist>
@@ -15,7 +18,7 @@ Dependencies:
 
 
 
-fortigetX.py
+OBSOLETE_fortigetX.py
 ------------
 ```
 Usage: fortigetX.py <firewall_ip>
